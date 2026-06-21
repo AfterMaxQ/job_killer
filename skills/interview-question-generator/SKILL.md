@@ -1,323 +1,434 @@
 ---
 name: interview-question-generator
 description: 当用户需要生成面试题、进行模拟面试准备、或根据JD和项目代码定制技术面试Q&A时使用。触发条件：用户提到"面试题""面试准备""mock interview""interview prep""模拟面试""帮我做面试题""怎么准备这个岗位"、或粘贴JD要求生成针对性面试准备材料
+
 ---
 
-# Interview Question Generator
+# 面试题生成器
 
-## Overview
+## 概述
 
-Generate mock interview Q&A that teaches the user how to **talk through** their project in a real interview — explaining architecture, design decisions, and tradeoffs in their own words. Not a code quiz.
+生成模拟面试 Q&A，教用户如何在真实面试中**讲清楚自己的项目**——解释架构、设计决策和取舍。不是代码测验。
 
-**JD Integration:** If the user provides a job description (JD), the skill parses it to extract what the employer cares about, then maps those requirements to the project's actual code/design. Every question anchors to a specific JD concern — so the user knows exactly which part of the JD each answer targets. Without a JD, the skill falls back to pure codebase-driven Q&A.
+**JD 集成：** 如果用户提供 JD，技能会解析雇主关注点，映射到用户项目的实际实现上。每道题锚定一个具体的 JD 要求——用户清楚知道每道题在回应 JD 的哪个部分。没有 JD 时，技能基于项目技术文档生成通用但同样有深度的面试题。
 
-## Core Principle
+**开始前先判断：** 用户贴了 JD → 进入 Phase 1；用户只说"面试题"没贴 JD → 先问一句："有 JD 的话贴一下，我可以针对性地出面试官最可能问的题。没有的话我就直接看项目技术文档出通用的。" 然后从 Phase 2 开始（跳过 Phase 1 和 Phase 3）。
 
-**In a real interview, nobody asks you to recite code.** They ask you to explain your thinking. The skill generates answers structured for oral delivery: clear narrative, logical reasoning, design rationale. Code references exist only as anchors for verbal explanation ("in our FileProcessReceiver, we handled retries by..."), never as the answer itself.
+## 核心原则
 
-**With a JD, answers bridge two things:** what the employer is looking for, and what you actually built. The narrative becomes: "JD asks for X — in our project, we handled X by..."
+**面试不考背书，考的是你讲清楚自己做过什么。** 答案结构为口头表达而生：清晰叙事、逻辑推理、设计理由。代码引用只作为口头叙述的锚点（"在 FileProcessReceiver 里，我们通过……处理了重试"），绝不是答案本身。
 
-## When to Use
+**有 JD 时，答案桥接两件事：** 雇主在找什么 + 你实际做了什么。叙述变成："JD 要求 X——我们在项目里通过 Y 解决了 X。"
 
-- User asks for "interview questions," "mock interview," or "interview prep"
-- User wants to practice explaining their project verbally
-- User needs structured Q&A that tests understanding, not memorization
-- User pastes a job description (JD) and asks for targeted interview prep
-- User says "这个岗位怎么准备面试" or similar JD + prep combo
+## 知识来源
 
-**Do NOT use for:** generic textbook Q&A, LeetCode-style problems, behavioral questions unrelated to the codebase.
+技能从 `个人信息/个人项目经历/` 下的两个位置获取项目知识：
 
-## Core Process
+1. **项目技术文档（主来源）** — `项目技术文档/<项目名>/`
+   架构图、API 规范、数据模型、设计决策、性能策略、安全机制、部署细节、技术难点。这些结构化文档是生成深度、具体面试答案的最丰富来源。**始终先读技术文档**——它们包含的设计上下文远超源代码。
 
-### Phase 0: JD Check
+2. **项目列表（索引）** — `项目列表.md`
+   所有项目的快速参考：技术栈、关键亮点。用来识别有哪些项目、该读哪些技术文档。
 
-Before anything else, check if the user provided a JD:
+**降级规则：** 如果项目在 `项目技术文档/` 下有文档，那就是权威来源。只有技术文档未覆盖 JD 要求的某个具体领域时，才去扫描源代码。
 
-- If the user pasted a JD (job description with requirements/responsibilities): proceed to **Phase 1: Parse JD**
-- If the user just said "面试题" or "interview prep" with no JD attached: ask once — "有 JD 的话贴一下，我可以针对性地出面试官最可能问的题。没有的话我就直接看代码出通用的。" Then skip to Phase 2 (skip Phase 1 & 3)
+## 适用场景
 
-### Phase 1: Parse JD
+- 用户要求"面试题"、"模拟面试"、"面试准备"
+- 用户想练习口头讲项目
+- 用户需要结构化 Q&A，测试理解而非记忆
+- 用户贴了 JD，要求针对性面试准备
 
-**Only if a JD was provided.** Extract structured information from the JD. Parse directly — do not ask the user questions.
+**不适用：** 通用教科书 Q&A、LeetCode 刷题、与项目无关的行为面试题。
 
-**Output — JD 解析摘要：**
+## 核心流程
 
-| 维度 | 提取内容 |
-|------|---------|
-| 硬技能 | 语言/框架/中间件/DB/云平台等明确要求 |
-| 业务领域 | 电商/金融/SaaS/数据平台/企业软件等 |
-| 关键词 | "高并发""0到1""重构""带人""核心模块""性能优化"等 |
-| 隐性信号 | JD 反复强调的词 → 面试必问方向（例如 JD 三次提到"性能"，意味着至少有 2 道题要围绕性能展开） |
-| 职级信号 | 通过措辞判断——"参与"vs"负责"vs"主导"；"了解"vs"熟悉"vs"精通" |
+### Phase 1: JD 解析
 
-**Output — 面试官最可能追问的 3-5 个方向：**
+**仅在用户提供了 JD 时执行。** 直接从 JD 文本提取结构化信息，不要问用户问题。
+
+**解析摘要：**
+
+| 维度     | 提取内容                                                     |
+| -------- | ------------------------------------------------------------ |
+| 硬技能   | 语言/框架/中间件/DB/云平台等明确要求                         |
+| 业务领域 | 电商/金融/SaaS/数据平台/企业软件等                           |
+| 关键词   | "高并发""0到1""重构""性能优化"等                             |
+| 隐性信号 | JD 反复出现的词 → 必问方向（如三次提到"性能"→ 至少 2 道题围绕性能） |
+| 职级信号 | "参与"vs"负责"vs"主导"；"了解"vs"熟悉"vs"精通"               |
+
+**面试官最可能追问的方向（3-5 个）：**
+
 ```
-1. [方向] — 因为 JD 强调 [具体表述]
-2. [方向] — 因为 JD 强调 [具体表述]
+1. [方向] — JD 强调 [具体表述]
+2. [方向] — JD 强调 [具体表述]
 ...
 ```
 
-**Key rule:** Every JD phrase you extract must be traceable to a specific sentence in the JD. Don't invent requirements.
+**规则：** 每条提取必须有 JD 原文对应，不发明需求。
 
-### Phase 2: Explore with JD Lens
+### Phase 2: 项目知识探索
 
-Build a mental model of the project's technology and architecture:
+从技术文档构建每个项目的深度心智模型。**技术文档是主来源**——源代码无法提供的架构推理、设计取舍和技术难点都在文档里。
 
-1. Read `CLAUDE.md` (or equivalent) for tech stack and architecture overview
-2. Scan key source files: security config, core services, message queue setup, cache layer, frontend state
-3. Identify the project's **signature patterns** — the interesting design decisions an interviewer would want to hear about
+**Step 1: 读项目列表**
 
-**Checklist — confirm you understand:**
-- [ ] Tech stack (every layer: framework, DB, cache, MQ, search, frontend)
-- [ ] Module structure and dependency chain
-- [ ] Auth flow end-to-end
-- [ ] Core business pipeline (e.g., file upload → process → index)
-- [ ] Resilience patterns (retry, degradation, caching)
-- [ ] Frontend data flow (API → store → component)
+读 `个人信息/个人项目经历/项目列表.md`，识别所有项目及其技术栈和关键亮点。
 
-**If a JD was provided, also confirm:**
-- [ ] JD 要求的每个技术栈，项目中用到了吗？怎么用的？
-- [ ] JD 的关键词（高并发/性能/重构等），项目中哪些设计决策能回应？
-- [ ] JD 隐含的职级预期，项目中的复杂度能匹配吗？如果不能，哪些地方需要补充说明？
+**Step 2: 读每个相关项目的技术文档**
+
+目录结构：`个人信息/个人项目经历/项目技术文档/<项目名>/`
+
+- **AllahPan 云盘项目** → 先读 `architecture/00-project-overview.md`（架构、数据流、技术栈、API、数据模型、9 大技术难点、性能安全策略、部署运维）
+  - 根据 JD 关注点深入专题：`architecture/02-authentication-flow.md`、`architecture/03-file-upload-flow.md`、`architecture/05-cache-architecture.md`、`architecture/08-rabbitmq-pipeline.md`、`architecture/09-search-module.md`、`architecture/11-minio-storage-architecture.md`
+  - API 文档：`api/` 目录 7 个文件，35 个端点
+- **FinanceAgent 金融决策项目** → 先读 `00-overview.md`，深入 `01-architecture.md`、`03-hybrid-model.md`、`04-agent-decision.md`、`05-tools.md`
+- **bloodpressureApp** → 读 `TECHNICAL_DOCUMENTATION.md`
+- **credit_risk 分析项目** → 读 `详细分析过程与结果描述.md`
+
+**Step 3: JD 相关领域深挖**
+
+JD 强调的方向（如"高并发"、"数据库设计"），直接跳到技术文档对应章节精读。技术文档结构清晰，按标题定位即可。
+
+**确认清单：**
+
+- [ ] 每个相关项目的技术栈（来自技术文档）
+- [ ] 架构：模块结构、依赖链、服务间通信
+- [ ] 核心业务管线及其设计推理（为什么异步、为什么这个数据流）
+- [ ] 韧性模式（重试策略、降级、缓存、容错）
+- [ ] 关键技术难点及解决方案（来自文档的"技术难点"章节）
+- [ ] 数据模型及存储策略（为什么这个 DB/索引/分区）
+- [ ] 安全机制（认证流、限流、攻击面覆盖）
+
+**如果有 JD，额外确认：**
+
+- [ ] JD 要求的每个技术栈，项目中用到了吗？怎么用的？（从技术文档找答案）
+- [ ] JD 的关键词，技术文档中哪些设计决策能直接回应？
+- [ ] JD 隐含的职级预期，项目复杂度能匹配吗？
 
 **JD 驱动扫描策略：**
-- 不要在 JD 没提到的技术细节上花太多时间
-- JD 强调的方向（如 "性能优化"），深挖相关代码和设计
-- JD 提到的技术栈中，项目没用到的要标记——面试可能被问到"为什么不用 X"
 
-### Phase 3: Map JD ↔ Project
+- 不在 JD 没提的技术细节上花太多时间
+- JD 强调的方向，深挖技术文档中对应的难点和方案
+- JD 提到但项目没用的技术栈要标记——面试可能被问"为什么不用 X"
+- 技术文档中的量化数据（"指数退避 30s/60s/120s"、"AUC 0.96"、"三层限流"）是面试回答中最有说服力的素材
 
-**Only if a JD was provided.** Skip to Phase 4 if no JD.
+### Phase 3: JD ↔ 项目映射
 
-Build a mapping table connecting each JD requirement to the project's actual implementation. This table is the blueprint for all subsequent question generation.
+**仅在用户提供了 JD 时执行。** 没有 JD 则跳到 Phase 4。
 
-**Mapping table format:**
+构建 JD 要求到项目实际实现的映射表。这张表是所有后续出题的蓝图。
 
-| JD 要求 | 项目对应点 | 出题方向 | 优先级 |
-|---------|-----------|---------|--------|
-| "高并发系统设计" | RabbitMQ 削峰 + Redis 缓存 | 怎么用文件处理流水线讲清楚并发设计 | 高 |
-| "数据库设计能力" | MySQL 元数据 + ES 全文搜索 | 为什么双存储，不做单一库？ | 高 |
-| "CI/CD 经验" | （项目未涉及） | — | 跳过 |
+| JD 要求          | 项目对应点                                              | 出题方向                     | 优先级 |
+| ---------------- | ------------------------------------------------------- | ---------------------------- | ------ |
+| "高并发系统设计" | RabbitMQ 削峰 + Redis 缓存（见 00-overview §6.2）       | 文件处理流水线怎么扛并发     | 高     |
+| "数据库设计能力" | MySQL 元数据 + ES 全文搜索双存储（见 00-overview §5.1） | 为什么双存储，一致性怎么保证 | 高     |
+| "CI/CD 经验"     | （项目未涉及）                                          | —                            | 跳过   |
 
-**Rules:**
+**优先级规则：**
+
 - **JD 强调 + 项目能展示 → 高优先级，必出题**（多出 1-2 道追问）
-- **JD 强调 + 项目薄弱 → 标记跳过或降权**（可出 1 道"诚实承认+讲思路"的题）
+- **JD 强调 + 项目薄弱 → 降权**（最多 1 道"诚实承认+讲思路"）
 - **JD 未提 + 项目有亮点 → 低优先级**（最多 1 道，作为加分项）
-- **JD 提到 + 项目完全没有 → 准备 1 道"诚实回答"型题**："我们项目没用 X，但我知道它的原理是..."
+- **JD 提到 + 项目完全没有 →** 准备 1 道诚实回答型题："我们项目没用 X，但我了解它的原理……"
+- **映射引用文档：** 每个条目的"项目对应点"注明技术文档章节（如"见 00-overview §6.1 文件秒传"）
 
-**保底验证：** 映射表完成后，对照 JD 逐条检查——每个 JD 核心要求至少有一条映射（出题或诚实回答）。
+**保底验证：** 映射完成后对照 JD 逐条检查——每个 JD 核心要求至少有一条映射（出题或诚实回答）。
 
-### Phase 4: Ask
+### Phase 4: 询问用户偏好
 
-Ask the user TWO required questions before generating. Do NOT proceed until both are answered.
+生成前必须问用户两个问题，两个都回答后才能继续。
 
-#### Question 1: 题量
+**问题 1 — 题量：**
 
 > 你想生成多少道面试题？（建议 5–15 道）
 
-#### Question 2: 分类占比
+**问题 2 — 分类占比：**
 
 > 你希望各类型题目的占比是怎样的？
 
-**如果用户没有明确说占比**，给出推荐方案让用户选择：
-
-根据项目实际技术栈，提供 2–3 个预设方案：
+如果用户没说占比，提供预设方案：
 
 ```
-方案 A — 均衡覆盖：各类型按默认权重分配
+方案 A — 均衡覆盖
   架构 15% | 后端 20% | 前端 15% | 数据/缓存 10%
   安全 10% | 异步/消息 10% | 搜索 5% | 存储 10% | 可靠性 5%
 
-方案 B — 后端深度：聚焦服务端设计和数据流
+方案 B — 后端深度
   架构 20% | 后端 30% | 数据/缓存 15% | 安全 10%
   异步/消息 10% | 存储 10% | 前端 5%
 
-方案 C — 全栈均衡：前后端各半
+方案 C — 全栈均衡
   后端 25% | 前端 25% | 架构 15% | 数据/缓存 10%
   安全 10% | 存储 10% | 异步/消息 5%
 ```
 
-**如果用户提供了 JD：** 在三个预设方案外增加 **方案 D — JD 驱动**，作为推荐方案：
+**如果有 JD：** 增加**方案 D — JD 驱动（推荐）**，按 JD 关注点自动分配权重，并说明理由。
 
-```
-方案 D — JD 驱动（推荐）：按 JD 关注点自动分配权重
-  [根据 JD 实际内容，列出各类别的建议题数和理由]
-  例如 JD 偏后端 → 架构 20% | 后端 30% | 数据/缓存 15%...
-```
+**注意事项：**
 
-方案 D 是针对这份 JD 定制的最佳分配。但保留用户选择 A/B/C 的权利。
+- 方案 D 是推荐方案，但保留用户选择其他方案的权利
+- 如果项目只有后端没有前端，方案 C 不适用，自动移除
+- 方案 D 中 JD 未提及的类别权重不要归零——留至少 1 道展示项目完整性
 
-**如果用户已经给了占比**，复述确认：
+**如果用户已给了占比：** 复述确认后再继续。
 
-> 确认一下：你要的是 [N] 道题，[总结占比]。我按这个分配来生成？
+**可选追问：**
 
-得到用户确认后再继续。
+- 目标难度？（初级/中级/高级，默认按项目实际深度）
+- 特别想深挖的方向？（如"多问点缓存那块"）
 
-#### 可选追问
+### Phase 5: 题目分类分配
 
-- 目标难度？（初级 / 中级 / 高级，默认按项目实际深度）
-- 特别想深挖的方向？（如"多问点缓存穿透那块"）
+根据用户确认的分类占比分配题数。各类别覆盖内容（跳过项目未使用的类别）：
 
-Wait for the user's response to BOTH required questions before proceeding.
-
-### Phase 5: Categorize
-
-根据用户确认的分类占比，把题目分配到具体类别。各类别覆盖内容如下（跳过项目未使用的类别）：
-
-| Category | What it covers |
-|----------|---------------|
-| Architecture & Design | Module split, data flow, why this structure |
-| Backend Core | Service design, API design, Spring patterns |
-| Frontend | Component design, state management, real-time updates |
-| Data & Caching | DB design, Redis strategy, cache penetration/avalanche |
-| Security & Auth | Login flow, token design, access control |
-| Async & Messaging | Message queues, scheduled tasks, event flow |
-| Search & Indexing | ES design, indexing strategy, search API |
-| Storage & Files | Upload pipeline, chunking, dedup, storage backend |
-| Reliability | Fault tolerance, retry logic, graceful degradation, testing |
+| 类别       | 覆盖内容                           |
+| ---------- | ---------------------------------- |
+| 架构与设计 | 模块划分、数据流向、为什么这样分层 |
+| 后端核心   | 服务设计、API 设计、框架模式       |
+| 前端       | 组件设计、状态管理、实时更新       |
+| 数据与缓存 | DB 设计、Redis 策略、缓存穿透/雪崩 |
+| 安全与认证 | 登录流、Token 设计、权限控制       |
+| 异步与消息 | 消息队列、定时任务、事件流         |
+| 搜索与索引 | ES 设计、索引策略、搜索 API        |
+| 存储与文件 | 上传管线、分片、去重、存储后端     |
+| 可靠性     | 容错、重试逻辑、优雅降级、测试     |
 
 **分配规则：**
+
 - 用户指定了百分比 → 严格按用户给的来
-- 用户选了预设方案 → 按预设方案的权重计算具体题数
-- 题数不能整除时，优先补到后端和架构类别
+- 用户选了预设方案 → 按预设权重计算题数
+- 不能整除时优先补到后端和架构类别
+- 确保最终各类别题数之和等于总题数，不丢失不超量
 
-### Phase 6: Generate — Oral-First Answers
+### Phase 6: 选择执行模式
 
-This is the critical phase. Every answer must read like something you'd **say out loud in an interview**.
+展示最终分配方案，问用户选择生成方式。
 
-### JD Anchor (per question, when JD provided)
+**展示分配：**
 
-Each question opens with a JD anchor line that tells the user WHY this question exists:
+```
+按你的选择，共 N 道题，分配如下：
+  架构与设计 — X 道
+  后端核心 — X 道
+  前端 — X 道
+  数据与缓存 — X 道
+  安全与认证 — X 道
+  异步与消息 — X 道
+  搜索与索引 — X 道
+  存储与文件 — X 道
+  可靠性 — X 道
+```
+
+**然后问：**
+
+> 生成方式选哪个？
+>
+> **A — 当前会话**：我在这里逐类别生成，你能看到每道题出来。适合题量少（≤8 道）或想边生成边调整。
+>
+> **B — 并行子代理（推荐）**：按类别分发到子代理并行生成，每个子代理独立读取该类别相关的技术文档章节，自行完成质量审核后出题。速度快很多，适合题量多（10+ 道）。
+
+等待用户选择后进入 Phase 7。
+
+**并行子代理执行指引：**
+
+选择 B 时，按类别启动子代理并行生成。每个子代理在生成前**必须完整阅读**该类别关联的技术文档章节，不允许只看摘要。
+
+**子代理分发清单（主代理在启动子代理前完成）：**
+
+1. 该类别分配的题目数量和类别说明（来自 Phase 5）
+2. 该类别相关的 JD 要求（来自 Phase 3 映射表）
+3. **该类别相关的技术文档完整路径列表**（来自 Phase 2 的文档扫描结果）——子代理必须逐一读取
+
+**子代理强制三步流程：**
+
+```
+Step 1 — 读文档（必须执行，不可跳过）
+  逐一读取主代理指定的技术文档文件。边读边标注：
+  - 哪些设计决策可以作为 "为什么这样设计" 的素材
+  - 哪些量化数据可以增强答案说服力
+  - 哪些技术难点可以作为追问准备的素材
+
+Step 2 — 出题方向与质量自检（生成前必须完成）
+  列出每道题的出题方向和预期价值，逐题自检：
+  ✓ 能帮用户回顾项目中的关键设计决策吗？
+  ✓ 能展示技术深度（不是背概念）吗？
+  ✓ 面试官真的会问吗？（不偏、不怪、不钻牛角尖）
+  ✓ 答案需要大量代码吗？（如果需要，方向错了——面试是口头表达）
+
+  淘汰这几类题：
+  ✗ 纯概念题（"什么是 Redis？"）
+  ✗ 钻牛角尖的细节题（"xx 配置项默认值是多少？"）
+  ✗ 与项目无关的泛泛而谈（"微服务有什么优缺点？"）
+  ✗ 答案无法口语化的实现题（"这段代码一行行解释一下"）
+
+Step 3 — 生成完整 Q&A
+  基于完整阅读和方向审核后的理解生成。
+```
+
+**子代理 prompt 模板：**
+
+```
+你是面试题生成专家。请为 [类别名] 生成 N 道面试Q&A。
+
+⚠️ 强制三步流程：
+
+Step 1 — 完整阅读以下技术文档（逐一读取，不要跳过）：
+  - [文档路径1] — [与当前类别的关联说明]
+  - [文档路径2] — [与当前类别的关联说明]
+  - ...
+
+Step 2 — 列出每道题的出题方向并自检（生成前先输出）：
+  Q1: [方向] — [面试官为什么问] — [展示什么深度]
+  Q2: ...
+  自检：✓ 无纯概念题 / ✓ 无钻牛角尖题 / ✓ 无泛泛而谈题 / ✓ 无代码实现题
+
+Step 3 — 生成完整 Q&A
+
+JD 关注点：[该类别对应的 JD 要求]
+
+每道题的要求：
+- 项目具体的，不是通用概念题
+- 口语化叙述风格（Oral-First）
+- 遵循答案结构：概述 → 思路 → 怎么做 → 为什么 → 边界 → 追问
+- 引用技术文档中的量化数据增强说服力
+- 禁止使用未读过文档的项目的任何信息
+```
+
+**主代理职责：**
+
+- 为每个子代理精确指定需读取的文档路径（根据 Phase 2 中已掌握的文档结构）
+- 确保子代理覆盖该类别相关的所有文档，不遗漏关键章节
+- 所有子代理返回后，在当前会话中汇总组装
+
+### Phase 7: 生成答案
+
+#### 当前会话模式（选项 A）
+
+逐类别生成。每道题生成前，先执行与子代理 Step 2 相同的质量自检：
+
+**每道题自检：**
+
+- ✓ 能帮用户回顾关键设计决策？
+- ✓ 能展示技术深度（不是背概念）？
+- ✓ 面试官真的会问？
+- ✓ 答案不需要大量代码？
+- ✗ 淘汰：纯概念题 / 钻牛角尖细节题 / 泛泛而谈题 / 无法口语化的实现题
+
+同时确保：
+
+- 不只讲 happy path——一定要讲异常场景和边界条件
+- 每道设计决策都提到被放弃的替代方案（"为什么不用 X？"）
+
+#### 并行子代理模式（选项 B）
+
+子代理已独立完成生成，主代理汇总组装即可。组装前快速通读——如果某道题明显违反质量自检规则，退回子代理重做或手工修正。
+
+#### 答案结构（口语优先）
+
+每道答案遵循以下叙述结构：
+
+```
+Q: [具体的、与项目相关的问题]
+
+A:
+
+一句话概述 — 用一句话说清楚这是什么
+
+整体思路 (1-2 句)
+面对什么问题，选了哪个方案，为什么。
+
+具体怎么做 (分点，口头叙述风格)
+- 先做什么 → 为什么这步在前
+- 然后做什么 → 关键考虑是什么
+- 最后做什么 → 结果是什么
+
+为什么这样设计 (2-3 个关键决策)
+- 选了 A 而不是 B，因为……
+- 这里有个坑是 X，通过 Y 来规避……
+- 如果直接做 Z 会有问题，所以我们……
+
+边界和取舍 (如适用)
+- 这个方案在什么场景下不够用
+- 如果量增长 10 倍，哪里需要改
+
+追问准备 (1-2 句，JD 核心方向时必填)
+- 如果面试官继续追问"[更深的追问]"，可以说……
+```
+
+**JD 锚点（如有 JD）：**
+
+每道题开头用一行标注 JD 来源，让用户知道这道题在回应 JD 的哪个部分：
 
 ```
 > 🎯 对应JD："[JD 中的原表述]"
 ```
 
-When answering in an interview, the user mentally links back to this JD requirement — the answer serves the JD.
+#### 写作规则
 
-## Answer Structure (Oral-First)
+**✅ 要做：**
 
-Every answer follows this narrative structure:
-
-```
-Q: [Specific question tied to the project]
-> 🎯 对应JD："[JD 中的原表述]"  ← 如有 JD
-
-A:
-
-**一句话概述** — 用一句话说清楚这是什么
-
-**整体思路** (1-2 句)
-先讲清楚面对什么问题，选择了什么方案，为什么。
-
-**具体怎么做** (分点，口头叙述风格)
-- 先做什么 → 为什么这一步在前
-- 然后做什么 → 这里的关键考虑是什么
-- 最后做什么 → 结果是什么
-
-**为什么这样设计** (2-3 个关键决策)
-- 选了 A 而不是 B，因为...
-- 这里有个坑是 X，我们通过 Y 来规避...
-- 如果直接做 Z 会有什么问题，所以我们...
-
-**边界和取舍** (如适用)
-- 这个方案在什么场景下不够用
-- 如果用户量增长 10 倍，哪里需要改
-
-**追问准备** (1-2 句，JD 核心关注方向时必填)
-- 如果面试官继续追问"[更深或相关的追问]"，你可以说...
-```
-
-## Writing Rules for Answers
-
-### ✅ DO — Oral style
-
-- 用"我们"、"你" 这样的口语化表达
+- 用"我们"、"你"的口语化表达
 - 先讲"为什么"再讲"怎么做"
-- 把技术决策讲成故事：遇到了什么问题 → 想了什么办法 → 为什么选了这个
-- 代码只作为口头叙述的佐证，偶尔提及类名/方法名即可
+- 把技术决策讲成故事：问题 → 思路 → 选择
+- 代码只作为口头叙述的佐证，偶尔提类名/方法名即可
 - 多用对比："如果不用 X，就会出现 Y 问题"
-- 如果提供了 JD，答案中自然融入 JD 语言："JD 要求高并发经验，我们在项目中..."
+- 有 JD 时，答案中自然融入 JD 语言
+- 引用技术文档中的量化数据增强说服力
 
-### ❌ DON'T — Written documentation style
+**❌ 不要做：**
 
-- 不要大段粘贴代码
-- 不要罗列配置项和参数
-- 不要像 API 文档一样列举每个方法
-- 不要用"第一步、第二步"这种书面化序号
-- 不要让答案看起来像 README
+- 大段粘贴代码
+- 罗列配置项和参数
+- 像 API 文档一样列举方法
+- 用"第一步、第二步"这种书面化序号
+- 让答案看起来像 README
 
-### Comparison: Wrong vs Right
+**Wrong vs Right（精简对比）：**
 
-**❌ Wrong (written doc style):**
 ```
-Q: 文件上传后的处理流程是怎样的？
-
-FileProcessReceiver.handle() 方法接收 FileProcessMessage。
-首先 switch message.getCurrentStage():
+❌ Wrong:
+FileProcessReceiver.handle() 接收 FileProcessMessage。
+switch message.getCurrentStage():
   case UPLOADED -> thumbnailGenerator.generate(file)
-  case THUMBNAILED -> textExtractor.extract(file)
-  case TEXT_EXTRACTED -> esIndexService.index(file)
 异常时检查 retryCount < MAX_RETRY，计算 delay = 30000 * (1 << retryCount)
-```
 
-**✅ Right (oral style):**
-```
-Q: 文件上传完成后，后端怎么处理这个文件？
+✅ Right:
+文件上传后进入四阶段异步流水线，RabbitMQ 驱动，失败自动重试。
 
-一句话概述：文件上传后进入一个四阶段的处理流水线，由 RabbitMQ 驱动，
-每个阶段处理完再投递到下一阶段，失败自动重试。
-
-整体思路：
-用户文件上传完只是存到了 MinIO，后面还有缩略图、文本提取、搜索索引
-这些事情比较耗时，不能堵在上传请求里同步做。所以我们用消息队列把这些
-步骤串成一个异步流水线。
-
-具体怎么做：
-- 上传完成后，先发一条消息到 RabbitMQ，标记阶段为 UPLOADED
-- 消费者拿到消息，第一步是生成缩略图。这里有个细节——先发下阶段消息
-  再更新数据库状态。顺序反了的话，消息发失败了数据库却已经改了状态，
-  这条文件就卡住了。先发消息，失败了抛异常，数据库没动，下次重试还从
-  当前阶段开始
-- 第二步是文本提取，PDF、Word、图片都在这步处理。图片我们还接了一个
-  本地的 Ollama 模型做 OCR，但这个不是必需的，挂了也不影响主流程
-- 第三步是建 ES 索引，让文件内容可以被全文搜索
+整体思路：上传完只是存到 MinIO，后续缩略图、OCR、搜索索引都很耗时，
+不能堵在上传请求里。我们用消息队列解耦，上传立即返回，后台慢慢处理。
 
 为什么这样设计：
-- 异步而不是同步：上传是用户操作，等太久体验很差。异步处理虽然用户
-  看不到中间过程，但我们在前端用 SSE 实时推送状态变化，用户能看到
-  "处理中→已完成"的转变
-- 指数退避重试：失败后不是马上重试，而是 30s → 60s → 120s 递增。
-  如果是基础设施抖动，等一等就好了；如果三次都失败，区分一下是
-  Redis/ES 挂了（降级，文件还能用）还是数据库写失败（标记失败）
-- 状态机而不是线性流程：每个阶段独立，即使某一步挂了，前面的工作
-  不白做。而且后续如果要加新步骤（比如病毒扫描），插在中间就行
-
-边界：
-- 如果文件量很大，单条队列会有瓶颈，后续可以按用户分片
-- Ollama OCR 是本地模型，处理大图会很慢，生产环境可能需要换云端 OCR
+- 异步而不是同步：用户体验好，上传不用等。前端通过 SSE 实时看进度
+- 指数退避重试：30s → 60s → 120s。瞬时抖动自愈，三次都失败再告警
+- 状态机不是线性：每阶段独立，某一步挂了前面的不白做。加新步骤也方便
 ```
 
-## Question Quality Checklist
+### Phase 8: 交付与总结
 
-For each generated question, verify:
+所有题目生成完毕后，输出汇总：
 
-- [ ] Question is project-specific (not "What is Redis?")
-- [ ] Answer starts with one-sentence summary
-- [ ] Answer explains WHY before HOW
-- [ ] Answer uses oral/conversational language
-- [ ] Answer mentions specific design tradeoffs
-- [ ] No code blocks longer than 5 lines
-- [ ] File/class references are narrative anchors, not the main content
-- [ ] Answer includes at least one "如果不用 X，就会 Y" comparison
+```
+📋 生成完成：共 N 道面试题
 
-## Output Format
+类别分布：
+  架构与设计 X 道 | 后端核心 X 道 | 前端 X 道 | ...
+
+💡 使用建议：
+  - 先通读一遍，标出需要结合自己实际经历补充细节的地方
+  - 重点练 [JD 最关注的方向] 类别的题——面试官大概率会问到
+  - [如有追问准备的题] 这几道题有追问准备，建议和同学模拟面试时让对方追问到底
+  - 如果想对某个方向深挖、追加题目，告诉我
+```
+
+## 输出格式
 
 ```markdown
 # [项目名] 模拟面试 Q&A
 
 > 技术栈：[简要列举]
-> JD 解析：[如果提供了 JD，列出关键要求摘要；如果没有，此行省略]
+> JD 关注点：[如有 JD，列出核心要求摘要]
 > 题目数：N | 难度：[级别]
 
 ---
@@ -330,30 +441,26 @@ For each generated question, verify:
 
 ---
 
-## 分类：[类别名]
+## 类别名
 
 ### Q1: [问题]
 > 🎯 对应JD："[JD中的具体表述]"  ← 如有 JD
 
 [口语化回答]
 
-> 💡 追问准备：[如适用，JD 核心方向必填]
+> 💡 追问准备：[如适用]
 
 ### Q2: [问题]
-> 🎯 对应JD："[JD中的具体表述]"  ← 如有 JD
-
-[口语化回答]
-
-> 💡 追问准备：[如适用]
+...
 
 ---
 
-(重复所有分类和题目)
+(重复所有类别和题目)
 ```
 
-## Complete JD-Driven Example
+## 示例：JD 驱动完整流程
 
-**Input JD (excerpt):**
+**输入 JD：**
 
 ```
 高级后端开发工程师
@@ -361,69 +468,47 @@ For each generated question, verify:
 具备数据库设计能力，有系统性能优化经验优先
 ```
 
-**Phase 1 Output — JD 解析：**
+**Phase 1 — JD 解析：**
 
-| 维度 | 提取 |
-|------|------|
-| 硬技能 | Java, Spring Boot, MQ, 缓存, DB |
-| 业务领域 | 未明确 |
-| 关键词 | "高并发""设计经验""性能优化" |
-| 隐性信号 | "高级"+"设计"→ 面试会追问架构决策能力；"性能优化"单独标为"优先" |
-| 职级信号 | "高级"+"设计经验"+"具备...能力" → P6/高级工程师 |
+| 维度     | 提取                                              |
+| -------- | ------------------------------------------------- |
+| 硬技能   | Java, Spring Boot, MQ, 缓存, DB                   |
+| 关键词   | "高并发""设计经验""性能优化"                      |
+| 职级信号 | "高级"+"设计经验" → P6/高级，面试追问架构决策能力 |
 
-**面试官最可能追问的 3 个方向：**
-1. 高并发设计 — JD 排第二 + "系统设计经验"
-2. 性能优化 — 独立列为"优先"项
-3. 数据库设计 — 写的是"设计能力"不是"使用经验"
+**面试官可能追问：** 高并发设计（排第二+系统设计经验）、性能优化（独立标"优先"）、数据库设计（要"设计能力"不要"使用经验"）
 
-**Phase 3 Output — 映射表：**
+**Phase 3 — 映射表：**
 
-| JD 要求 | 项目对应点 | 出题方向 | 优先级 |
-|---------|-----------|---------|--------|
-| 高并发系统设计 | RabbitMQ 削峰 + Redis 缓存 + 异步流水线 | 文件处理流水线怎么扛并发 | 高 |
-| 性能优化经验 | ES 索引优化 + 缓存命中率策略 | 搜索性能怎么一步步优化的 | 高 |
-| 数据库设计能力 | MySQL 元数据 + ES 全文搜索双存储 | 为什么双存储，数据一致性怎么保证 | 高 |
-| 熟悉消息队列 | RabbitMQ 四阶段文件处理 pipeline | 消息可靠性怎么保证，失败怎么处理 | 中 |
+| JD 要求        | 项目对应点                              | 出题方向                         | 优先级 |
+| -------------- | --------------------------------------- | -------------------------------- | ------ |
+| 高并发系统设计 | RabbitMQ 削峰 + Redis 缓存 + 异步流水线 | 文件处理流水线怎么扛并发         | 高     |
+| 性能优化经验   | ES 索引优化 + 缓存命中率策略            | 搜索性能怎么一步步优化           | 高     |
+| 数据库设计能力 | MySQL 元数据 + ES 全文搜索双存储        | 为什么双存储，一致性怎么保证     | 高     |
+| 熟悉消息队列   | RabbitMQ 四阶段文件处理 pipeline        | 消息可靠性怎么保证，失败怎么处理 | 中     |
 
-**Resulting Q (excerpt):**
+**生成结果示例（Q1）：**
 
 ### Q1: 你们系统的文件处理流程怎么保证高并发下的稳定性？
 
 > 🎯 对应JD："有高并发系统设计经验"
 
-一句话概述：文件上传后通过 RabbitMQ 驱动一个四阶段异步流水线，削峰填谷，保证上传接口不被耗时处理拖垮。
+一句话概述：文件上传后通过 RabbitMQ 驱动一个四阶段异步流水线，削峰填谷，上传接口不被耗时处理拖垮。
 
-整体思路：用户上传是同步操作需要即时响应，但后续缩略图、文本提取、索引构建都很耗时——如果同步处理，上传一个文件要等好几秒，多用户时直接打满线程池。所以我们用消息队列把上传和处理解耦。
+整体思路：用户上传是同步操作需要即时响应，但后续缩略图、文本提取、索引构建都很耗时——同步处理一个文件要等好几秒，多用户直接打满线程池。所以用消息队列把上传和处理解耦。
 
 具体怎么做：
-- 上传完成后，先发一条消息到 RabbitMQ，标记阶段为 UPLOADED。这里有个细节——先发消息再写数据库状态，顺序反了会出问题：消息发失败了但数据库已经改了状态，这条文件就卡住了
-- 消费者拿到消息后，按 UPLOADED → THUMBNAILED → TEXT_EXTRACTED → INDEXED 四个阶段依次处理，每阶段完成发下一阶段消息。阶段独立的好处是某一步挂了前面的不白做
-- Redis 缓存上传状态，前端通过 SSE 实时看到进度变化
+
+- 上传完成后先发消息到 RabbitMQ，标记 UPLOADED。细节：先发消息再写数据库——顺序反了消息发失败但 DB 已改状态，文件就卡住了
+- 消费者按四个阶段依次处理，每阶段完成投递下一阶段消息。阶段独立的好处是某步挂了前面的不白做
+- Redis 缓存状态，前端 SSE 实时看进度
 
 为什么这样设计：
-- 异步而不是同步：上传是用户操作，等太久体验差。异步后用 SSE 推状态，用户能看到"处理中→已完成"
-- 指数退避重试：30s → 60s → 120s。瞬时抖动自愈，三次都失败再告警，区分是基础设施问题还是数据问题
-- 阶段独立 + 状态机：后续加病毒扫描等步骤只需插在中间，不影响现有流程
 
-边界：
-- 单条队列有吞吐上限，QPS 再涨需要按用户哈希分片
-- 当前重试策略对瞬时故障友好，持久故障需要人工介入
+- 异步不是同步：上传体验好，SSE 推状态替代轮询
+- 指数退避重试：30s → 60s → 120s。瞬时抖动自愈，三次失败区分基础设施问题（降级）还是数据问题（标记失败）
+- 状态机不是线性流程：后续加病毒扫描只需插在中间
 
-> 💡 追问准备：如果面试官问"并发再涨 10 倍怎么办"，可以说——瓶颈在 RabbitMQ 单队列吞吐，可以做 consumer 水平扩展 + 按用户哈希分片；如果消息量到百万级可以换 Kafka 做分区并行消费。
+边界：单条队列有吞吐上限，QPS 再涨需按用户哈希分片
 
----
-
-## Common Mistakes
-
-| Mistake | Fix |
-|---------|-----|
-| 答案像技术文档 | 想象你在会议室对着白板讲，不是写 README |
-| 大段粘贴代码 | 代码最多 5 行，只用于口头叙述的佐证 |
-| 先讲怎么做再讲为什么 | 永远先讲"为什么"，建立 context 再展开细节 |
-| 只讲 happy path | 一定要讲异常场景和边界条件 |
-| 不对比方案 | 每个设计决策都要提到被放弃的替代方案 |
-| 生成前不问数量和分类 | Phase 4 (Ask) 是强制步骤 |
-| 全是后端题 | 前端、架构、可靠性各占合理比例 |
-| 生成了 JD 提到但项目中没用到的技术的题 | 标记跳过，或改成"诚实回答"型题（"我们没用 X，但我知道..."） |
-| JD 关键词没有在答案中呼应 | 每道 JD 锚定的题，答案中至少呼应一次 JD 原表述 |
-| JD 提供了但不调整分类权重 | 启动方案 D，JD 强调的方向多出题 |
+> 💡 追问准备：如果面试官问"并发再涨 10 倍怎么办"——瓶颈在 RabbitMQ 单队列吞吐，可做 consumer 水平扩展 + 按用户哈希分片；消息量到百万级换 Kafka 分区并行消费。
