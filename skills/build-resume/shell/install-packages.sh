@@ -16,7 +16,7 @@ if ! command -v mpm &> /dev/null; then
 fi
 
 # ============ 关键：禁止弹出确认框 ============
-echo "配置 MiKTeX 静默自动安装模式（不弹确认框）..."
+echo "配置 MiKTeX 自动静默安装..."
 initexmf --set-config-value "[MPM]AutoInstall=1" 2>/dev/null || true
 initexmf --update-fndb 2>/dev/null || true
 echo "✓ 配置完成"
@@ -55,7 +55,7 @@ PACKAGES=(
     cite
     hyperref
 
-    # oberdiek 工具包（含 kvsetkeys/kvoptions/pdfescape 等）
+    # oberdiek 工具包
     oberdiek
     kvsetkeys
     kvoptions
@@ -92,4 +92,4 @@ echo "======================================"
 echo " 完成！成功: $SUCCESS，跳过: $FAIL"
 echo "======================================"
 echo ""
-echo "现在可以运行 bash build.sh 编译简历了。"
+echo "可运行 bash build.sh 编译简历pdf。"
