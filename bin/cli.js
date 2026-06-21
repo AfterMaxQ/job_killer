@@ -11,9 +11,9 @@ if (help) {
   Job Killer — 求职技能工具链
 
   用法:
-    npx job-killer           在当前目录安装 6 个 Claude Code 技能
-    npx job-killer --force   强制覆盖已有技能
-    npx job-killer --help    显示帮助
+    npx @ethan_ray/job-killer           在当前目录安装 6 个 Claude Code 技能
+    npx @ethan_ray/job-killer --force   强制覆盖已有技能
+    npx @ethan_ray/job-killer --help    显示帮助
 
   安装内容:
     .claude/skills/          ← 6 个技能定义文件
@@ -32,7 +32,7 @@ if (fs.existsSync(claudeSkillsDir) && !force) {
   const existing = fs.readdirSync(claudeSkillsDir).filter(f => !f.startsWith('.'));
   if (existing.length > 0) {
     console.log(`\n.claude/skills/ 已有技能：${existing.join(', ')}`);
-    console.log('如需覆盖，运行 npx job-killer --force\n');
+    console.log('如需覆盖，运行 npx @ethan_ray/job-killer --force\n');
     process.exit(0);
   }
 }
