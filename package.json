@@ -1,5 +1,5 @@
 {
-  "name": "job-killer",
+  "name": "@ethan_ray/job-killer",
   "version": "1.0.0",
   "description": "求职技能工具链 — 6 个 Claude Code 技能，一键安装，覆盖从 JD 触达到面试准备的完整流程",
   "main": "bin/cli.js",

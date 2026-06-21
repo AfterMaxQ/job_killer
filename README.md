@@ -20,14 +20,14 @@ first-start（新手引导）
 在 Claude Code 项目目录下运行：
 
 ```bash
-npx job-killer
+npx @ethan_ray/job-killer
 ```
 
 自动创建 `.claude/skills/`、`个人信息/`、`images/` 目录并安装全部 6 个技能。
 
 ```bash
-npx job-killer --force    # 强制覆盖已有技能
-npx job-killer --help     # 查看帮助
+npx @ethan_ray/job-killer --force    # 强制覆盖已有技能
+npx @ethan_ray/job-killer --help     # 查看帮助
 ```
 
 ### 方式二：手动
