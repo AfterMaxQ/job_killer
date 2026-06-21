@@ -110,7 +110,7 @@ npx @ethan_ray/job-killer --help     # 查看帮助
 
 ## 工作流
 
-1. 首次使用 → `first-start` → 选择 B（领域适配）→ 自动进入 `init-personal-info`
+1. 首次使用 → `first-start` → 选择 B（领域适配）→ 自动进入 `init-personal-info`和用户交互式询问与初始化个人信息
 2. 看到心仪岗位 → `greeting-generator`（发第一条消息）
 3. HR 回复了 → `hr-communicator`（持续沟通）
 4. 要投简历 → `build-resume`（粘贴 JD，生成定制 PDF）
