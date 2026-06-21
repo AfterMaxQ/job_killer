@@ -65,6 +65,27 @@ first-start（新手引导）
 
 **触发**：说 "面试题"、"面试准备"
 
+## 配置
+
+### 头像照片
+
+在项目根目录下放入 `images/you.jpg`，`build-resume` 会自动检测并在简历 PDF 中生成头像。
+
+```
+项目根目录/
+├── images/
+│   └── you.jpg          ← 你的照片（.jpg 格式）
+├── .claude/
+│   └── skills/
+└── 个人信息/
+```
+
+- 支持格式：`.jpg`
+- 推荐尺寸：证件照/半身照，任意分辨率均可（LaTeX 会自动缩放）
+- 无照片：不创建 `images/you.jpg` 即可，`build-resume` 会自动跳过
+
+生成简历时可在交互环节选择照片宽度（0.12 / 0.14 / 0.16 倍页宽）。
+
 ## 依赖
 
 - **build-resume**：XeLaTeX（MiKTeX 或 TeX Live）
