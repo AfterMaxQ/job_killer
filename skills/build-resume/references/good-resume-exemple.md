@@ -1,12 +1,12 @@
-# 雷穗辉 — SDE 实习 @ Amazon Devices Asia
+# XXX — xxx 实习 @ Amazon Devices Asia
 
 ## 基本信息
 
-- 姓名：雷穗辉
-- 电话：13533942043
-- 邮箱：1455726631@qq.com
-- 所在地：广州
-- GitHub：github.com/AfterMaxQ
+- 姓名：嘻嘻嘻
+- 电话：xxxxxxx
+- 邮箱：xxxxx
+- 所在地：xxxxx
+- GitHub：xxxxx
 
 ## 教育背景
 
