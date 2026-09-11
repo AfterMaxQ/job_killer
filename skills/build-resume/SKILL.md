@@ -1,382 +1,411 @@
 ---
 name: build-resume
-description: 当用户需要生成简历时使用。触发条件：用户提到"生成简历"、"制作简历"、"帮我写简历"、"生成CV"、粘贴JD、或需要将个人档案转换为专业排版的PDF简历。覆盖全流程：JD解析 → Markdown定制 → LaTeX编译 → PDF输出。
+description: Build truthful, evidence-grounded, job-targeted resumes from a candidate's Markdown profile and a job description, then compile them to PDF. Use when the user wants to create, tailor, revise, compare, or compile a resume/CV for a specific role, provides a JD for resume matching, or asks to turn their candidate profile into a job-specific resume.
 ---
 
-# build-resume 简历生成助手
+# Build Resume
 
-## 概述
+## Purpose
 
-一站式简历生成系统：粘贴 JD → 输出定制化 Markdown 简历 → 自动编译为专业排版 LaTeX PDF。提供 **3 种交互模式**（细致 / 宏观 / 全自动），适应不同场景。工作内容采用 **STAR 原则**（Situation → Action → Result），排版遵循**工整对齐、视觉平衡**原则。
+生成**真实、可追溯、针对当前 JD** 的简历。Agent 先理解岗位和候选人 Evidence，再决定内容与表达；Markdown 是候选人档案和每份 JD 中间决策的 Source of Truth，LaTeX/PDF 是最终呈现层。
 
-## 核心铁律
+## Inputs
 
-以下 5 条不可违反，Agent 在每一步操作前必须自查：
+- `个人信息/` 中的人类可编辑 Markdown 档案；
+- 当前 JD；
+- 可选：`个人信息/求职方向/目标方向.md`；
+- 可选：当前岗位已有 `temp_resume/<任务目录>/`；
+- 可选：`images/you.jpg`。
 
-1. **不编造信息**：所有内容必须有 `个人信息/` 或用户明确确认的来源。不确定的字段宁可留空也不推测。技能、经历、部署环境全部可追溯。
-2. **痛点驱动**：每个项目内容必须回答「谁有痛点 → 现有方案差在哪 → 我的方案怎么解决」。项目内容不是功能介绍，是问题洞察。
-3. **量化成果**：不用形容词，用数字说话。每个项目成果至少 2 个分句，覆盖落地状态 + 全流程能力/可复用价值。
-4. **内容可追溯**：技能只列用户实际掌握的，部署环境写用户真实的。不推测、不美化、不添加个人信息中不存在的字段。
-5. **排版零容忍**：连续 `{...}` 组之间必须 `\par` 换行；根目录编译后不留任何 `.cls` `.sty` `.aux` `.log` `.out` 文件。
+如果 `个人信息/` 不存在或缺少完成任务所需事实，按需使用 `init-personal-info` 补充真实信息。
 
-## 适用场景
+## Core Rules
 
-- 用户找到心仪岗位，需要生成针对该岗位的定制简历
-- 用户粘贴 JD，要求生成简历
-- 用户提到"帮我写简历"、"定制简历"、"生成CV"、"投这个岗位"
-- 已有 temp_resume/ 内容，需要编译或微调 PDF
-- 已有 resume.pdf，需要微调内容或重新编译
+1. **Never fabricate candidate facts.** 经历、技能、指标、环境、角色和成果必须来自候选人档案或用户明确确认。
+2. **Evidence Strength 与 JD 重要度分离。** 岗位越需要某能力，不代表候选人证据越强。
+3. **不写 unsupported claims。** `UNSUPPORTED` 必须删除；`NEEDS_CONFIRMATION` 未确认不得进入正式简历。
+4. **真实量化优先，不强制量化。** 没有真实数字时允许使用规模、交付状态或定性成果。
+5. **Skills communicate capability.** 技能区默认表达能力主题、关键词/方法和证据信号，不做技术名词仓库。
+6. **STAR 只做分析。** 最终 Bullet 不机械套完整 STAR。
+7. **运行时建模。** 不依赖固定“后端/前端/算法/测试”等岗位分类；根据当前 JD + Evidence 动态生成能力维度。
+8. **保留可审查中间文件。** Job Model、匹配、Positioning 和 Claim Audit 不只存在于临时推理中。
 
-## 前置依赖
+## Task Directory
 
-- XeLaTeX（MiKTeX 或 TeX Live）— 若未安装，Agent 自动引导安装
-- `个人信息/` 目录已初始化（推荐先运行 `/init-personal-info`）
-- 可选：`images/you.jpg`（照片，自动检测）
+每个目标 JD 建立独立目录：
 
-## 模板系统
-
-```
-.claude/skills/build-resume/template/
-├── header.tex          # 个人信息 + 照片
-├── education.tex       # 教育背景
-├── skills.tex          # 专业技能 ← 按需启用
-├── internship.tex      # 实习/工作经历
-├── projects.tex        # 项目经历
-├── studentwork.tex     # 学生工作
-├── selfeval.tex        # 个人评价
-├── footer.tex          # \end{document}
-├── resume.cls           # 文档类
-├── zh_CN-Adobefonts_external.sty
-└── linespacing_fix.sty
+```text
+temp_resume/<公司>-<岗位>/
+├── job-model.md
+├── match-matrix.md
+├── positioning.md
+├── resume.md
+└── claim-audit.md
 ```
 
-每个 `.tex` 模板包含 `⟨占位符⟩`，Agent 从 `temp_resume/` 提取内容替换。
+命名规则：
 
-## 交互模式
+- 公司和岗位都已知：`<公司>-<岗位>`；
+- 公司未知：使用用户提供的可辨识岗位名称；
+- 岗位未知：使用用户提供的可辨识任务名称；
+- 不得为了目录好看凭空补公司名、团队名或岗位名。
 
-启动时，在环境检测完成、进入流程之前，Agent **必须**展示三种模式供用户选择：
+已有任务目录时优先读取并延续，不无故重建。
 
-```
-## 交互模式选择
+## Interaction Modes
 
-请选择交互深度：
+### ① 细致模式
 
-| 模式 | 名称 | 交互方式 | 适用场景 |
-|------|------|----------|----------|
-| ① | 细致模式 | 逐模块确认内容+排版，每步等待反馈 | 第一次投递、对简历要求高、想精细打磨 |
-| ② | 宏观模式 | 只确认模块方案+篇幅，其余 Agent 自主完成 | 已有明确方向、信任 Agent 内容能力 |
-| ③ | 全自动模式 | 零提问，自主完成全流程直出 PDF | 快速出简历、熟悉 Agent 风格的老用户 |
+适合首次投递或需要精细打磨。
 
-推荐：首次使用推荐 ①，多次使用后可选 ② 或 ③。
-```
+只在会改变简历决策的节点确认：
 
-### 模式 ① 细致模式（默认）
+- Job Model；
+- Candidate Positioning；
+- 关键事实缺口；
+- `NEEDS_CONFIRMATION` Claim；
+- 最终 `resume.md`。
 
-完整执行七阶段流程，每个阶段等待用户确认后再进入下一步。阶段三对每个模块逐一讨论内容和排版。
+不要逐模块反复询问“写 2 条还是 3 条”“日期放哪”“技能几个词”等可由 Agent 自主决定的排版细节。
 
-- 阶段一：静默执行
-- 阶段二：展示模块方案 → 等待确认
-- 阶段三：逐模块「内容头脑风暴 → 用户确认 → 排版选项 → 用户选择」
-- 阶段四：展示 Markdown 定稿 → 等待确认
-- 阶段五：展示 LaTeX 模块预览 → 等待确认
-- 阶段六：用户可逐行微调，循环至确认
-- 阶段七：编译输出
+### ② 宏观模式
 
-### 模式 ② 宏观模式
+确认：
 
-仅在模块设计阶段与用户交互一次，其余阶段 Agent 自主完成。阶段五作为最终确认检查点。
-
-- 阶段一：静默执行
-- 阶段二：展示模块方案 + 各模块篇幅分配 → **用户一次性确认**
-- 阶段三~四：Agent 自主完成所有模块的内容+排版，不逐模块询问。**遵循 writing-standards.md 中的撰写规范**
-- 阶段五：展示完整 LaTeX 模块预览 → **用户最终确认**（可在此阶段切换到逐模块修改模式）
-- 阶段六：按需微调
-- 阶段七：编译输出
-
-### 模式 ③ 全自动模式
-
-全程无交互，Agent 自主完成全部决策并直接输出 PDF。
-
-- 阶段一：静默读取个人信息 + 解析 JD
-- 阶段二：自主选择模块方案
-- 阶段三~四：自主完成内容撰写 + 排版决策，**严格遵守 writing-standards.md 中的所有撰写规范**
-- 阶段五~六：跳过
-- 阶段七：直接编译输出 PDF
-- 完成后展示最终 Markdown 摘要并告知：「简历已生成（resume.pdf）。如需调整，告诉我具体要改什么。」
-
-> **注意**：模式 ③ 下 Agent 仍必须遵循所有排版规范（行宽≤60字、`\par` 换行、`parsep=1.2ex` 等）和内容约束（A4 单页、800-1000 字、不编造信息）。
-
-## 入口智能检测
-
-启动时 Agent 静默检测当前状态，根据状态分流：
-
-```
-1. ls temp_resume/*.md  →  检查是否有已有 Markdown 简历
-2. test -f build/resume.tex  →  检查是否有已组装的 LaTeX 文件
-3. test -f resume.pdf  →  检查是否有已编译的 PDF
-4. test -f images/you.jpg  →  检查照片
-5. xelatex --version  →  检查 LaTeX 环境
+```text
+Job Model + Positioning
 ```
 
-**分流逻辑：**
+之后 Agent 自主完成匹配、内容选择、写作、审计和排版；最终展示简历。
 
-```
-无 temp_resume/ 无 resume.pdf
-  → 完整流程，从阶段一开始。提示用户粘贴 JD。
+### ③ 全自动模式
 
-有 temp_resume/ 无 resume.pdf
-  → 展示已有 Markdown 摘要：
-    选项 A：直接编译 PDF（跳阶段五）
-    选项 B：修改 Markdown 内容后编译（跳阶段三）
-    选项 C：重新定制（从阶段一开始）
+不主动提问。
 
-有 temp_resume/ 有 resume.pdf
-  → 展示现有文件状态：
-    选项 A：微调 PDF 内容（跳阶段六）
-    选项 B：重新编译（跳阶段五）
-    选项 C：全部重来（从阶段一开始）
-```
+- 信息不足：使用当前可确认事实；
+- 弱 Evidence：按真实强度表达；
+- `NEEDS_CONFIRMATION`：弱化或删除；
+- `UNSUPPORTED`：删除；
+- PDF 构建失败：保留全部 Markdown 中间结果并报告失败原因。
 
-## 工作流程（七阶段）
+## Workflow
 
-### 阶段一：信息准备
+按顺序执行。
 
-Agent 静默执行，无需用户操作：
+### 1. Detect Context
 
-1. **读取个人信息/** 全部文件：
-   - `个人基本信息/基本信息.md`
-   - `个人专业技能/编程技术.md`、`语言能力.md`、`其他能力.md`
-   - `个人项目经历/项目列表.md`
-   - `个人工作经历/工作经历.md`
-   - `个人比赛经历/比赛经历.md`（如有）
-   - `个人自我评价/自我评价.md`
+检查：
 
-2. **解析 JD**（用户粘贴的岗位描述）：
-   提取 → 硬性要求 | 岗位职责 | 加分项 | 隐含需求
-   - 隐含需求：岗位名称暗示的核心能力（"后端开发"→架构/高并发，"AI应用"→模型落地/工程化，"全栈"→前后端打通能力）
+- `个人信息/`；
+- `个人信息/求职方向/目标方向.md`；
+- 当前任务目录；
+- 当前任务是否已有 `resume.md` / `claim-audit.md`；
+- `images/you.jpg`；
+- `xelatex --version`。
 
-3. **环境检测**（静默）：
-   - `xelatex --version`：不可用时引导安装 MiKTeX 后终止
-   - `test -f images/you.jpg`：有则标记照片可用
+如果用户只是修改已生成简历，不必重做与修改无关的分析；但任何新增 Claim 仍需 Evidence 和 Claim Audit。
 
-### 阶段二：模块设计
+### 2. Gather Candidate Evidence
 
-Agent 输出模块方案表：
+读取候选人当前任务需要的 Markdown。
 
-```
-## 简历模块方案 — [岗位名 @ 公司名]
+先读概要与索引，再按 Job Model 需要读取具体经历，避免把全部档案无差别塞进上下文。
 
-| 序号 | 模块 | 保留理由 | 预计篇幅 |
-|------|------|----------|----------|
-| 1 | 基本信息 | 必选项 | 3-4 行 |
-| 2 | 教育背景 | JD 要求本科... | 2-3 行 |
-| 3 | 专业技能 | 匹配 JD 技术栈 | 5-8 行 |
-| 4 | ... | ... | ... |
+Evidence 规则：
+
+```text
+Read references/evidence-model.md
 ```
 
-**模块选择原则：**
-- 只保留对这个岗位有意义的模块，不堆砌全部经历
-- 为每个模块说明保留理由
-- 用户可增删改模块，确认后进入阶段三
+### 3. Model Job
 
-### 阶段三：逐模块迭代（内容 + 排版）
+在写任何简历正文前：
 
-> **撰写规范**：Agent 必须在此步开始时 `Read .claude/skills/build-resume/references/writing-standards.md`，遵循其中全部规范。
-
-对每个确认的模块，分两步执行：
-
-#### 步骤 A：内容头脑风暴
-
-1. 展示 `个人信息/` 中该模块的原始素材
-2. 头脑风暴：
-   - 哪些内容与 JD 直接匹配？→ **保留并突出**
-   - 哪些内容部分相关？→ **改写角度以匹配 JD**
-   - 哪些内容完全不相关？→ **删掉**
-   - JD 要求但个人信息中未体现的技能？→ **引导用户补充**
-3. 草拟模块内容。必须遵循 `writing-standards.md` 中的一目十行设计原则、项目经历撰写规范、教育背景撰写规范、自我评价撰写原则
-4. 用户反馈 → 修改 → 确认
-
-#### 步骤 B：排版选项讨论
-
-确认内容后，Agent 展示该模块的排版选项。各模块可选排版：
-
-**基本信息：**
-- 布局方式：单列纵排 / 两列横排
-
-**专业技能：**
-- 分段方式：按类别分段 / 标签云式 / 其他方便选择的方式
-
-**实习经历 / 项目经历 / 学生工作：**
-- 要点数：2 点 / 3 点
-- 日期位置：右侧对齐 / 标题下方
-
-**自我评价：**
-- 点数：2 / 3 / 4 / 5
-
-**照片：**
-- 有无 + 宽度：无 / 0.12 / 0.14 / 0.16
-
-Agent 展示选项并给出推荐，用户选择后记录。所有模块完成后，汇总排版决策。
-
-### 阶段四：Markdown 定稿
-
-1. 组装所有确认模块为完整 Markdown
-2. **A4 单页约束检查**：
-   - 目标总字数 **800-1000 字**（不含模块标题）
-   - 超出时删减优先级：
-     1. 与 JD 弱相关内容
-     2. 合并同类技能/经验表述
-     3. 缩减次要项目描述
-     4. **绝不删减**与 JD 直接匹配的核心内容
-3. 追加**排版配置块**（HTML 注释，不影响 Markdown 渲染）：
-
-```html
-<!--排版配置
-个人信息布局: 两列横排
-STAR要点数: 3
-日期位置: 右侧对齐
-技能分段: 按类别分段
-自我评价点数: 4
-照片: 0.14
--->
+```text
+Read references/job-modeling.md
 ```
 
-4. 保存至 `temp_resume/[岗位]-[公司]-简历.md`
-5. 展示：文件路径 + 总字数 + 排版配置摘要
-6. **自动进入阶段五**
+生成：
 
-### 阶段五：LaTeX 模块预览（快览）
-
-> **LaTeX 格式与排版**：Agent 必须在此步前 `Read .claude/skills/build-resume/references/latex-reference.md`。
-
-Agent 读取 temp_resume/ 最新 .md 文件 + 解析排版配置块，展示：
-
-```
-## LaTeX 模块预览 — [岗位-公司]
-
-| 模块 | 状态 | 排版 | 内容摘要 |
-|------|------|------|----------|
-| 基本信息 | ✓ 已就绪 | 两列横排 | 姓名，广东广州... |
-| 教育背景 | ✓ 已就绪 | 默认 | xxxx大学... |
-| 专业技能 | ✓ 已就绪 | 按类别3段 | 后端/前端/数据库 |
-| 实习经历 | ✓ 已就绪 | 3点STAR | 阿里云 Java开发... |
-| 项目经历 | ✓ 已就绪 | 3点STAR | 信用风险模型... |
-| 学生工作 | ✗ 无内容 | — | 跳过 |
-| 自我评价 | ✓ 已就绪 | 4点 | 英语CET-6... |
-
-排版方案：基本信息两列 | 经历 3点 | 日期右对齐 | 照片 0.14
-确认以上方案？输入模块名可修改，或直接确认编译。
+```text
+<task-dir>/job-model.md
 ```
 
-> 排版决策已在阶段三确定，阶段五**只展示不重问**。
+必须区分 JD 明确要求和 Agent 推断。
 
-### 阶段六：LaTeX 微调（按需）
+### 4. Match Evidence
 
-用户可指定修改任意模块。支持指令：
+读取：
 
-- 文字修改：「把 xx 改成 yy」「删除第 N 点」「加一点：...」
-- 排版变更：「基本信息改单列」「项目改为 2 点」
-- 模块变更：「不要技能模块」
+```text
+references/matching-positioning.md
+```
 
-修改后展示 diff + 更新排版配置块 → 重新展示模块清单。循环至用户确认进入编译。
+生成：
 
-### 阶段七：组装编译 + 整理
+```text
+<task-dir>/match-matrix.md
+```
 
-#### 7.1 组装 resume.tex
+固定字段：
 
-Agent 按序组装：`header → education → skills → internship → projects → studentwork → selfeval → footer`
+```text
+能力 | JD重要度 | 最强证据 | 证据强度 | 策略
+```
 
-- 不在 temp_resume 中的模块跳过不引入
-- 每个启用模块：读取 `template/{module}.tex`，字符串替换 `⟨占位符⟩` → 实际 LaTeX 内容
-- 写入根目录 `resume.tex`
+### 5. Define Positioning
 
-排版配置到 LaTeX 的映射见 `references/latex-reference.md`。
+继续按 `references/matching-positioning.md` 生成：
 
-#### 7.2 编译
+```text
+<task-dir>/positioning.md
+```
+
+至少包含：Target Identity、Top Signals、Supporting Signals、Weaknesses、Strategy、Resume Story。
+
+### 6. Select Content
+
+以以下语义框架选择内容：
+
+```text
+岗位重要度 × 证据强度 × 差异化价值 × 篇幅成本
+```
+
+不是数学乘法；用于决定：
+
+- 哪段工作 / 项目进入简历；
+- 哪些只保留一句；
+- 哪些删除；
+- 模块顺序；
+- 技能区使用哪种策略。
+
+### 7. Write Resume
+
+读取：
+
+```text
+references/writing-standards.md
+```
+
+如果简历包含“专业技能 / 核心能力”模块，再读取：
+
+```text
+references/skills-section.md
+```
+
+需要更多表达参考时才读取：
+
+```text
+references/resume-examples.md
+```
+
+生成：
+
+```text
+<task-dir>/resume.md
+```
+
+示例只能学习原则，不能复制示例人物、数字、技术栈或固定句式。
+
+### 8. Audit Claims
+
+生成：
+
+```text
+<task-dir>/claim-audit.md
+```
+
+对高价值 Claim 使用四类：
+
+```text
+FACT
+DERIVED
+NEEDS_CONFIRMATION
+UNSUPPORTED
+```
+
+#### FACT
+
+候选人档案或用户明确提供的事实。
+
+#### DERIVED
+
+由多个真实事实合理总结，且没有提高事实强度。
+
+#### NEEDS_CONFIRMATION
+
+有合理线索，但现有证据不足以安全写入正式简历。
+
+#### UNSUPPORTED
+
+没有足够证据支持。
+
+每个高风险 Claim 推荐记录：
+
+```markdown
+## C1
+
+### 简历表述
+
+...
+
+### 证据
+
+...
+
+### 判断
+
+FACT / DERIVED / NEEDS_CONFIRMATION / UNSUPPORTED
+
+### 处理
+
+保留 / 弱化 / 已确认 / 删除
+```
+
+最终交付前：
+
+- 不得残留未处理 `UNSUPPORTED`；
+- `NEEDS_CONFIRMATION` 未确认不得进入正式简历。
+
+### 9. Validate Structure
+
+读取：
+
+```text
+references/validation-rules.md
+```
+
+运行：
+
+```bash
+python .claude/skills/build-resume/scripts/validate-resume.py "<task-dir>"
+```
+
+仓库直接执行 Skill 源文件时，使用相应实际安装路径。
+
+Validator 只负责确定性机械检查；语义真实性仍由 Agent 的 Evidence / Content Validation 负责。
+
+### 10. Build PDF
+
+读取：
+
+```text
+references/latex-reference.md
+```
+
+以当前任务目录的：
+
+```text
+resume.md
+```
+
+作为唯一简历内容来源，按启用模块组装根目录 `resume.tex`。
+
+模板仍使用现有：
+
+```text
+template/
+```
+
+然后运行：
 
 ```bash
 bash .claude/skills/build-resume/shell/build.sh
 ```
 
-- 成功 → `✓ resume.pdf 已生成，可直接打开查看！`
-- 失败 → 展示 xelatex 最后 15 行错误，定位问题
+不要为了新工作流重写现有 LaTeX 构建脚本，除非脚本本身实际失败且原因与路径强耦合。
 
-#### 7.3 Agent 手动整理
+### 11. Verify PDF
 
-编译成功后，Agent 必须执行以下整理步骤：
+再次运行 validator：
 
-1. **检查根目录散落文件**：`ls *.cls *.sty *.aux *.log *.out 2>/dev/null` — 如有残留，立即删除
-2. **确认 build.sh trap 已自清理**：验证 `resume.cls`、`zh_CN-Adobefonts_external.sty`、`linespacing_fix.sty` 未残留在根目录
-3. **归档 resume.tex**：执行 `bash .claude/skills/build-resume/shell/clean.sh`
-4. **确认最终状态**：根目录仅保留 `CLAUDE.md`、`resume.pdf` 及子目录，无任何 `.cls`、`.sty`、`.aux`、`.log`、`.out` 文件
-
-整理完成后告知用户：
-
-> ✓ resume.pdf 已生成，项目文件已整理干净。
-
-## Agent 自检清单
-
-> **详细检查项**：见 `references/common-errors.md`。Agent 必须在提交前 Read 该文件逐一核对。
-> **优秀示例参考**：见 `references/good-resume-exemple.md`。Agent 在撰写内容前应 Read 此文件，了解目标内容结构、排版风格和语言节奏。
-
-Agent 在三个关键时刻必须逐项核对：
-
-### Markdown 定稿前（阶段四结束时）
-
-- [ ] 每个项目内容是否说明了具体痛点？（谁有痛点 → 现有方案缺陷 → 本方案怎么解决）
-- [ ] 每个项目成果 ≥2 个分句？（落地状态 + 全流程能力/可复用价值）
-- [ ] 所有技能是否来自 `个人信息/` 或用户明确确认？
-- [ ] 是否删除了所有「精通」「熟练掌握」等无数据支撑的修饰词？
-- [ ] 个人信息字段是否正确？
-- [ ] 总字数在 800-1000 字范围内？
-
-### LaTeX 组装前（阶段七 7.1）
-
-- [ ] 所有独立 `{...}` 组之间是否加了 `\par`？
-- [ ] 每条 `\Content` 要点 ≤60 字？
-- [ ] 正文描述中无 `\textbf{}`？（仅板块标题、项目名称可加粗；分类前缀词使用 `\prefix{}`）
-- [ ] 分类前缀词已统一使用 `\prefix{}`？
-
-### 编译后（阶段七 7.3）
-
-- [ ] `ls *.cls *.sty *.aux *.log *.out` 无残留文件？
-- [ ] `resume.pdf` 确认为 1 页？
-- [ ] 已提醒用户打开 PDF 逐页检查对齐、溢出、间距？
-
-> 任何一项未通过，必须修复后再继续。
-
-## 内容来源优先级
-
-填充每个模块时，按以下优先级获取内容：
-
-1. **首选**：`temp_resume/` 中对应模块内容
-2. **次选**：`个人信息/` 中对应模块原始资料
-3. **补充**：交互式询问用户缺失的必要字段
-
-## 文件结构
-
+```bash
+python .claude/skills/build-resume/scripts/validate-resume.py "<task-dir>" --pdf resume.pdf
 ```
-.claude/skills/build-resume/
-├── SKILL.md
-├── references/
-│   ├── writing-standards.md       # 撰写规范（项目+教育+原则）
-│   ├── latex-reference.md         # LaTeX 格式参考+排版映射
-│   ├── common-errors.md           # 常见错误+自检清单
-│   └── good-resume-exemple.md     # 优秀简历示例（内容结构+排版参考）
-├── template/
-│   ├── header.tex
-│   ├── education.tex
-│   ├── skills.tex
-│   ├── internship.tex
-│   ├── projects.tex
-│   ├── studentwork.tex
-│   ├── selfeval.tex
-│   ├── footer.tex
-│   ├── resume.cls
-│   ├── zh_CN-Adobefonts_external.sty
-│   └── linespacing_fix.sty
-└── shell/
-    ├── build.sh
-    ├── clean.sh
-    └── install-packages.sh
-```
+
+并人工 / Agent 检查：
+
+- PDF 可打开；
+- 没有明显文本溢出；
+- 没有空模块；
+- 没有异常换行；
+- 页面策略合理；
+- 根目录没有不应残留的 LaTeX 临时文件。
+
+### 12. Deliver
+
+至少交付：
+
+- `<task-dir>/resume.md`；
+- `resume.pdf`（构建成功时）。
+
+同时保留：
+
+- `job-model.md`；
+- `match-matrix.md`；
+- `positioning.md`；
+- `claim-audit.md`。
+
+用户询问“为什么这样写”时，直接基于这些可审查文件解释。
+
+## Resource Routing
+
+| 阶段 | 读取 |
+|---|---|
+| Evidence | `references/evidence-model.md` |
+| Job Modeling | `references/job-modeling.md` |
+| Matching / Positioning | `references/matching-positioning.md` |
+| Writing | `references/writing-standards.md` |
+| Skills/Core Capabilities | `references/skills-section.md`，仅使用技能区时 |
+| Examples | `references/resume-examples.md`，仅需要参考时 |
+| LaTeX | `references/latex-reference.md` |
+| Validation | `references/validation-rules.md` |
+| 常见错误 | `references/common-errors.md`，需要排查时 |
+
+所有 reference 由 `SKILL.md` 直接指向，避免形成深层 reference → reference 链。
+
+## Decision Rules
+
+### 技能区
+
+默认优先 Capability-first；ATS 工具要求密集时可 Keyword-dense；工作经历已经足够强时可 Minimal。不得固定套一个分类。
+
+### 数字
+
+有真实数字就用；没有就使用规模、交付状态或定性成果。不得估算“看起来合理”的数字。
+
+### 页面
+
+学生 / 实习简历默认尽量单页，但不以删除核心 Evidence 或增加无价值内容为代价。
+
+### 缺失能力
+
+Evidence = 0：不写。Evidence 较弱：只按真实强度写，不因 JD 需要而升级。
+
+## Failure Handling
+
+### JD 信息不足
+
+只建立能确认的 Job Model；低置信度内容标 `[推断]`。不伪造公司要求。
+
+### 候选人证据不足
+
+细致模式可以询问真实经历；宏观 / 全自动模式弱化或删除对应能力。
+
+### Validator 失败
+
+逐项修复错误后重跑，不跳过失败继续交付。
+
+### PDF 编译失败
+
+保留任务目录全部 Markdown，报告构建错误；不要删除有效分析成果，也不要声称 PDF 已成功。
+
+## Validation
+
+交付前必须同时通过：
+
+1. **Evidence Validation**：Claim 可追溯、Evidence Strength 未被夸大；
+2. **Content Validation**：Positioning 清晰、最强证据获得主要篇幅、技能区不是名词仓库；
+3. **Mechanical / Rendering Validation**：运行 validator 并检查 PDF。
+
+任何一层失败，都不能把当前结果标记为最终完成。
