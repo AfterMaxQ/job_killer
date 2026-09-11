@@ -166,6 +166,14 @@ temp_resume/<公司>-<岗位>/
 
 **用途**：结合 JD 和候选人项目/工作材料准备面试问题与口语化回答。
 
+## 运行依赖
+
+- **Python 3**：运行 `build-resume` 的确定性 validator；
+- **XeLaTeX**（MiKTeX 或 TeX Live）：生成 PDF；
+- **Node.js / npx**：使用 npm 安装方式时需要。
+
+`build-resume` 当前 LaTeX 模板使用系统字体配置，因此执行 PDF 编译的机器需要具备模板引用的字体。
+
 ## build-resume 验证
 
 确定性检查：
@@ -182,13 +190,15 @@ python .claude/skills/build-resume/scripts/validate-resume.py "temp_resume/<公�
 
 Validator 检查文件结构、占位符、重复 Bullet、强熟练度措辞、未处理 Claim、PDF 基础状态和 LaTeX 临时文件。语义真实性仍由 Agent 根据 Evidence 做审计。
 
-## PDF 依赖
+## PDF 构建
 
-`build-resume` 使用 XeLaTeX：
+`build-resume` 使用现有模板：
 
-- MiKTeX 或 TeX Live；
-- 模板位于 `.claude/skills/build-resume/template/`；
-- 编译脚本：
+```text
+.claude/skills/build-resume/template/
+```
+
+编译：
 
 ```bash
 bash .claude/skills/build-resume/shell/build.sh
