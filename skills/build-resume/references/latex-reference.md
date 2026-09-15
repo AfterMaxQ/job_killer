@@ -1,182 +1,169 @@
 # LaTeX 格式与排版参考
 
-> 供 build-resume SKILL.md 阶段五/七引用。Agent 在组装 LaTeX 前 Read 此文件。
+本文件只负责把当前任务目录中的 `resume.md` 转换为现有 LaTeX 模板能够编译的 `resume.tex`。内容选择和事实判断在此之前已经完成，不在 LaTeX 阶段重新改写候选人事实。
 
-## 排版配置 → LaTeX 映射表
+## 输入
 
-| 配置项 | 值 | LaTeX 实现 |
-|--------|-----|-----------|
-| 个人信息布局 | 单列纵排 | 每字段独立 `\SimpleEntry{...}` |
-| 个人信息布局 | 两列横排 | `\SimpleEntry` 配合宽度调整 |
-| STAR 要点数 | 3 | `\Content{}{}{}` |
-| STAR 要点数 | 2 | `\Contenttwo{}{}` |
-| 日期位置 | 右侧对齐 | `\datedsubsection{}{日期}`（默认） |
-| 技能分段 | 按类别 | `{后端：xxx}` `{前端：xxx}` 每类一行 |
-| 自我评价点数 | N | N 个 `{N.xxx}` |
-| 照片 | 有+宽度 | `\yourphoto{0.xx}` |
-| 照片 | 无 | 注释掉 `\yourphoto` 行 |
+当前任务目录：
 
----
-
-## LaTeX 格式参考
-
-### \SimpleEntry（个人信息行）
-
-```latex
-\SimpleEntry{\makebox[11em][l]{\prefix{电话：}13533942043}\prefix{邮箱：}1455726631@qq.com}
-\SimpleEntry{\makebox[11em][l]{\prefix{所在地：}广州}\prefix{GitHub：}\href{https://github.com/AfterMaxQ}{github.com/AfterMaxQ}}
+```text
+temp_resume/<公司>-<岗位>/
+└── resume.md
 ```
 
-用户没有的字段直接删除对应行，不保留空行。
+只使用该 `resume.md` 作为本次简历正文来源，不从其它旧 Markdown 自动拼接内容。
 
-### \datedsubsection + \Content（项目经历，3 点）
+## 模板顺序
 
-标准项目结构：项目名称 | 角色 | 时间 + 技术栈 + 项目内容 + 核心工作（3点）+ 项目成果
+根据 `resume.md` 实际存在的模块，按合理顺序组装现有模板：
 
-```latex
-\datedsubsection{\textbf{项目名称}，角色（独立开发/核心开发）}{时间}
-{\prefix{技术栈：}核心框架 + 中间件 + 数据库（精准关键词，不堆砌）}
-\par
-{\prefix{项目内容：}1句话讲清项目定位与核心问题（不超过2行）}
-\Content
-{ 动作 + 技术 + 场景 + 结果 第一点，字+字符不超过60 ；}
-{ 动作 + 技术 + 场景 + 结果 第二点，字+字符不超过60 ;}
-{ 动作 + 技术 + 场景 + 结果 第三点，字+字符不超过60 。}
-{\prefix{项目成果：}量化产出、优化效果或落地情况}
+```text
+header
+education
+skills
+internship
+projects
+studentwork
+selfeval
+footer
 ```
 
-### \datedsubsection + \Contenttwo（项目经历，2 点）
+模块不存在时跳过对应模板，不保留空标题。
 
-```latex
-\datedsubsection{\textbf{项目名称}，角色}{时间}
-{\prefix{技术栈：}...}
-\par
-{\prefix{项目内容：}...}
-\Contenttwo
-{ 动作 + 技术 + 场景 + 结果 第一点，字+字符不超过60 ；}
-{ 动作 + 技术 + 场景 + 结果 第二点，字+字符不超过60 。}
-{\prefix{项目成果：}...}
+模块顺序可以根据 Positioning 调整；上面只是模板可用列表，不是内容策略的固定顺序。
+
+## 模板目录
+
+安装后的默认路径：
+
+```text
+.claude/skills/build-resume/template/
 ```
 
-### 多项目分隔
+仓库源码中对应：
 
-项目之间使用 `\projectsep`（浅灰虚线），定义在 `resume.cls`：
-
-```latex
-{\prefix{项目成果：}...}
-\projectsep
-% --- 项目N ---
-\datedsubsection{\textbf{项目名称}，角色}{时间}
+```text
+skills/build-resume/template/
 ```
 
-### 教育背景
+现有 `shell/build.sh` 仍负责 XeLaTeX 编译和模板 `.cls/.sty` 的临时复制/清理。
 
-标准结构（单段学历）：
+## 个人信息
 
-```latex
-\section{教育背景}
-\datedsubsection{\textbf{学校名称}，专业全称，\textit{学历}}{入学时间 - 毕业时间}
-{GPA x.x/4.0（专业前xx\%）}  % 有优势则写，标注满分
-\par
-{\prefix{核心课程：}课程1、课程2、...（8-10门，与岗位高度匹配）}
-\par
-{\textbf{学业荣誉：}xxx}  % 可选，按含金量排序
-```
+没有的字段直接删除，不输出空行。
 
-- GPA 低于 3.0 或无突出排名则不写
-- 核心课程只列专业核心课/方向选修课，不放公共课（马原、大学英语、体育等）
-- 课程按 JD 相关度排序，高分课程可标注分数如「数据库系统原理（94分）」
-
-### 学生工作
+虚构示例：
 
 ```latex
-\datedsubsection{部门，岗位，\textit{负责xxx工作}}{开始 - 结束}
+\SimpleEntry{\makebox[11em][l]{\prefix{电话：}138-0000-0000}\prefix{邮箱：}candidate@example.com}
+\SimpleEntry{\makebox[11em][l]{\prefix{所在地：}杭州}\prefix{作品集：}\href{https://portfolio.example.com/demo}{portfolio.example.com/demo}}
 ```
 
-### 个人评价
+示例中的姓名、电话、邮箱、地址和链接均为虚构，仅用于说明格式，绝不能复制到真实简历。
+
+## 日期与标题
+
+日期默认可使用：
 
 ```latex
-\section{个人评价}
-{1.xxx}
-
-{2.xxx}
-
-{3.xxx}
+\datedsubsection{项目名称｜角色}{2026.03--2026.06}
 ```
 
-每点 30-45 字。
+如果当前模板支持其它日期布局，可以根据页面需要调整，但不要在排版阶段改变真实时间。
 
-### 专业技能
+## Content Bullet
+
+最终 Bullet 来自 `resume.md`，不要求固定 2 条或 3 条。
+
+根据实际条数选择模板现有宏，或按模板允许的方式连续输出：
 
 ```latex
-\section{专业技能}
-{\prefix{后端：}Spring Boot、MyBatis、Spring Security...}
-
-{\textbf{前端：}Vue 3、HTML5、JavaScript}
-
-{\textbf{数据库：}MySQL、Redis、Elasticsearch...}
+\Content{...}{...}{...}
 ```
 
-按技能类别分段，每段一行，按 JD 相关度排序。技能名称不加括号注解（版本号、配置细节等留给面试展开）。
+如果项目只需要两条，不要为了填满宏而制造第三条内容；应使用现有两条布局能力或合理组装。
 
-**技能精选原则**：
-- 每行不超过 5 个技术名词，只列最核心、最匹配 JD 的技术
-- 重合度高的技术合并（如 `MySQL、Redis、Elasticsearch` 不额外加 `SQLite、ChromaDB`）
-- 优先列 JD 明确要求的技术栈，其次列与岗位强相关的，其余果断删掉
-- 宁可少列被问到再展开，不要堆砌让人质疑深度
-- 禁止将基础调用方式列为专业技能
-- **熟练度**：默认不加，如果用户选择则询问是否加熟练度。用户要求时加「熟练」或「掌握」，禁止「精通」。格式：`后端（熟练）`
+## 技能 / 核心能力
 
----
+技能区应忠实保留 `resume.md` 中已经确定的动态能力簇，例如：
 
-## 排版规范
+```text
+数据分析：SQL、Python、Excel；完成过从数据清洗到业务汇报的完整任务
+```
 
-填充 LaTeX 模板时，必须遵守以下排版规则：
+不要在 LaTeX 阶段重新改回固定“后端 / 前端 / 数据库 / DevOps”分类。
 
-### 1. 行宽控制 — 杜绝溢出
+分类前缀可继续使用：
 
-- 每条 `\Content` 要点 `{ ... }` 内字符总数（含标点、空格）不超过 **60 字**
-- 技术术语不得在行尾断开换行，必要时用 `\mbox{Spring Boot}` 包裹
+```latex
+\prefix{数据分析：}
+```
 
-### 2. 间距统一 — 拒绝参差
+正文不要因为排版需要改变 Evidence 强度。
 
-- `\section{}` 之间的垂直间距由模板 `\vspace{}` 统一控制
-- `\Content` / `\Contenttwo` bullet 项间距由 `resume.cls` 的 `parsep=1.2ex` 统一控制，不在 resume.tex 中手动 `\setlist`
-- 技能行、自评行等段落间距由 `resume.cls` 的 `\parskip=0.6ex` 统一控制
-- 个人信息区域 `\SimpleEntry{}` 行间距均匀，相邻行基线对齐
-- 不额外插入 `\\` 或 `\vspace` 破坏模板预设间距
-- **LaTeX 换行规则**：连续 `{...}` 组不会自动换行，渲染为同一段落连续文字。多个 `{...}` 组之间必须用 `\par` 显式换行（如技术栈与项目内容之间、GPA 与核心课程之间）
+## 常用格式规则
 
-### 3. 日期对齐 — 右边界齐平
+- 模块标题、项目名可以使用模板既有的强调样式；
+- 分类前缀统一使用 `\prefix{}`；
+- 普通正文避免过度 `\textbf{}`；
+- 连续独立文本块之间按模板需要使用 `\par`，避免连行；
+- 对 LaTeX 特殊字符做必要转义：`& % $ # _ { } ~ ^ \\`；
+- URL 使用 `\href{}`，显示文本保持简短；
+- 技术名词过长导致断行时可使用模板现有处理方式，但不要通过删除真实关键信息解决排版问题。
 
-- 所有 `\datedsubsection{}{}` 第二个花括号右对齐
-- 日期格式统一为 `YYYY.M - YYYY.M` 或 `YYYY.M`
+## 照片
 
-### 4. 页面平衡 — 避免虎头蛇尾
+只有 `images/you.jpg` 存在且用户当前简历策略允许照片时才启用照片宏。
 
-- 内容均匀填充整页
-- 最后只剩 1-2 行跨到第二页 → 压缩；内容只占半页 → 适当增加间距
+照片尺寸属于排版决策，不要求固定在 0.12 / 0.14 / 0.16 三个值中；优先保证版面平衡。
 
-### 5. 孤行控制 — 不落单
+## 页面策略
 
-- `\subsection{}` 标题不得单独留在页底
-- 最后一条 STAR 要点不得孤零零出现在下一页开头
+学生 / 实习简历可以以单页为默认目标。
 
-### 6. 字体规范
+超页时按内容优先级处理：
 
-| 用途 | 中文 | 英文 | 字号 |
-|------|------|------|------|
-| 板块大标题 | 黑体 | Times New Roman | 14pt |
-| 二级标题 | 宋体 | Times New Roman | 12pt |
-| 正文描述 | 宋体 | Times New Roman | 10.5pt |
-| 右侧辅助信息 | 宋体 | Times New Roman | 10pt |
+1. 删除弱相关内容；
+2. 合并重复表达；
+3. 缩短次要项目；
+4. 使用 Minimal 技能区；
+5. 最后才调整行距或其它版式参数。
 
-**字重**：仅板块标题和项目/竞赛名称可加粗，正文描述、bullet 点、技术术语一律不加粗。
+不得为了单页删除 Job Model 的核心 Evidence。
 
-### 7. 编译后复核
+不足一页时不要为了填满页面增加无关经历或空泛自评。
 
-编译成功后必须提醒用户打开 PDF 检查：
-- 是否有文字跑出右边距？
-- 各模块间距是否均匀？
-- 日期列是否对齐？
-- 加粗是否仅限板块标题（正文不得出现 `\textbf{}`）？
+## 组装与构建
+
+1. 读取当前任务目录 `resume.md`；
+2. 读取需要的模板文件；
+3. 用真实内容替换模板占位符；
+4. 写根目录 `resume.tex`；
+5. 运行：
+
+```bash
+bash .claude/skills/build-resume/shell/build.sh
+```
+
+6. 构建成功后运行 validator：
+
+```bash
+python .claude/skills/build-resume/scripts/validate-resume.py "<task-dir>" --pdf resume.pdf
+```
+
+## Failure Handling
+
+- LaTeX 编译失败：保留 `resume.md` 和全部分析文件，展示编译错误，不声称完成；
+- 特殊字符导致失败：只修正转义，不改候选人事实；
+- 内容超页：返回内容选择阶段压缩弱相关信息，不擅自删核心 Evidence；
+- 模板无法表达某模块：优先用现有模板的通用布局，不为了模板限制改变模块语义。
+
+## Validation
+
+- [ ] `resume.tex` 内容来自当前任务目录的 `resume.md`；
+- [ ] 没有空模块；
+- [ ] 没有真实个人信息示例残留在 reference；
+- [ ] 技能区保留动态能力簇；
+- [ ] 日期、数字、岗位、公司等事实没有被排版阶段修改；
+- [ ] PDF 构建状态与实际一致；
+- [ ] `.aux/.log/.out` 等临时文件按现有清理流程处理。
